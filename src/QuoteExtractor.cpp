@@ -131,7 +131,8 @@ bool QuoteExtractor::saveQuotes(const std::vector<CachedQuote>& quotes) {
     return false;
   }
 
-  serialization::writePod(file, QUOTE_FILE_VERSION);
+  const uint8_t version = QUOTE_FILE_VERSION;
+  serialization::writePod(file, version);
   const uint8_t count = static_cast<uint8_t>(quotes.size());
   serialization::writePod(file, count);
   for (const auto& q : quotes) {
