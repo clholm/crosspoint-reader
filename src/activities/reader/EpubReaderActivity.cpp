@@ -7,6 +7,8 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "PetState.h"
+#include "QuoteExtractor.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
@@ -112,6 +114,23 @@ void EpubReaderActivity::onExit() {
   }
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
+
+  // Extract a quote for the pet if the user read enough pages
+  if (epub && PET_STATE.sessionPagesRead >= 5) {
+    const std::string sectionPath =
+        epub->getCachePath() + "/sections/" + std::to_string(currentSpineIndex) + ".bin";
+    CachedQuote quote;
+    if (QuoteExtractor::extractQuoteFromSection(sectionPath, epub->getTitle(), quote)) {
+      std::vector<CachedQuote> quotes;
+      QuoteExtractor::loadQuotes(quotes);
+      if (quotes.size() >= QuoteExtractor::MAX_QUOTES) {
+        quotes.erase(quotes.begin());
+      }
+      quotes.push_back(std::move(quote));
+      QuoteExtractor::saveQuotes(quotes);
+    }
+  }
+
   section.reset();
   epub.reset();
 }
@@ -420,6 +439,8 @@ void EpubReaderActivity::renderScreen() {
     f.write(data, 6);
     f.close();
   }
+
+  PET_STATE.recordPageTurn();
 }
 
 void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int orientedMarginTop,

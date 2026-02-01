@@ -12,7 +12,9 @@
 #include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "PetState.h"
 #include "KOReaderCredentialStore.h"
+#include "activities/readagotchi/ReadagotchiActivity.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "activities/boot_sleep/BootActivity.h"
@@ -236,10 +238,15 @@ void onGoToBrowser() {
   enterNewActivity(new OpdsBookBrowserActivity(renderer, mappedInputManager, onGoHome));
 }
 
+void onGoToPet() {
+  exitActivity();
+  enterNewActivity(new ReadagotchiActivity(renderer, mappedInputManager, onGoHome));
+}
+
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onContinueReading, onGoToMyLibrary, onGoToSettings,
-                                    onGoToFileTransfer, onGoToBrowser));
+                                    onGoToFileTransfer, onGoToBrowser, onGoToPet));
 }
 
 void setupDisplayAndFonts() {
@@ -310,6 +317,8 @@ void setup() {
 
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
+  PET_STATE.loadFromFile();
+  PET_STATE.onBootInit();
 
   if (APP_STATE.openEpubPath.empty()) {
     onGoHome();
