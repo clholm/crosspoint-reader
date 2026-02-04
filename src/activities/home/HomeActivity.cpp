@@ -91,6 +91,14 @@ void HomeActivity::onEnter() {
 
   selectorIndex = 0;
 
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  // In QEMU, FreeRTOS background tasks are too slow for interactive rendering.
+  // Render synchronously instead.
+  Serial.println("[EMU] HomeActivity: starting synchronous render");
+  render();
+  Serial.println("[EMU] HomeActivity: render complete");
+  updateRequired = false;
+#else
   // Trigger first update
   updateRequired = true;
 
@@ -100,11 +108,13 @@ void HomeActivity::onEnter() {
               1,                  // Priority
               &displayTaskHandle  // Task handle
   );
+#endif
 }
 
 void HomeActivity::onExit() {
   Activity::onExit();
 
+#if !defined(CROSSPOINT_EMULATED) || CROSSPOINT_EMULATED == 0
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -113,6 +123,7 @@ void HomeActivity::onExit() {
   }
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
+#endif
 
   // Free the stored cover buffer if any
   freeCoverBuffer();
@@ -198,6 +209,14 @@ void HomeActivity::loop() {
     selectorIndex = (selectorIndex + 1) % menuCount;
     updateRequired = true;
   }
+
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  // In QEMU, render synchronously since there's no background task
+  if (updateRequired) {
+    updateRequired = false;
+    render();
+  }
+#endif
 }
 
 void HomeActivity::displayTaskLoop() {

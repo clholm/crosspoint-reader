@@ -288,6 +288,12 @@ void setup() {
     }
   }
 
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  // QEMU max display height is 600px, so portrait (480x800) is not possible.
+  // Use landscape orientation where coordinates map 1:1 to the physical framebuffer.
+  renderer.setOrientation(GfxRenderer::Orientation::LandscapeCounterClockwise);
+#endif
+
   // SD Card Initialization
   // We need 6 open files concurrently when parsing a new chapter
   if (!SdMan.begin()) {

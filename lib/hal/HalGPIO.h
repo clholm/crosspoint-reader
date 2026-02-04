@@ -1,8 +1,11 @@
 #pragma once
 
 #include <Arduino.h>
+
+#if !defined(CROSSPOINT_EMULATED) || CROSSPOINT_EMULATED == 0
 #include <BatteryMonitor.h>
 #include <InputManager.h>
+#endif
 
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
 #define EPD_SCLK 8   // SPI Clock

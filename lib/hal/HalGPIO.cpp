@@ -1,3 +1,5 @@
+#if !defined(CROSSPOINT_EMULATED) || CROSSPOINT_EMULATED == 0
+
 #include <HalGPIO.h>
 #include <SPI.h>
 #include <esp_sleep.h>
@@ -53,3 +55,5 @@ bool HalGPIO::isWakeupByPowerButton() const {
     return (wakeupCause == ESP_SLEEP_WAKEUP_UNDEFINED) && (resetReason == ESP_RST_POWERON);
   }
 }
+
+#endif  // !CROSSPOINT_EMULATED

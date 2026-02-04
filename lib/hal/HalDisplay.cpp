@@ -1,3 +1,5 @@
+#if !defined(CROSSPOINT_EMULATED) || CROSSPOINT_EMULATED == 0
+
 #include <HalDisplay.h>
 #include <HalGPIO.h>
 
@@ -49,3 +51,5 @@ void HalDisplay::copyGrayscaleMsbBuffers(const uint8_t* msbBuffer) { einkDisplay
 void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) { einkDisplay.cleanupGrayscaleBuffers(bwBuffer); }
 
 void HalDisplay::displayGrayBuffer() { einkDisplay.displayGrayBuffer(); }
+
+#endif  // !CROSSPOINT_EMULATED
