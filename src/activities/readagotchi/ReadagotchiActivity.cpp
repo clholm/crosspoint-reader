@@ -28,6 +28,10 @@ void ReadagotchiActivity::onEnter() {
   // Load a random quote if available
   hasQuote = QuoteExtractor::loadRandomQuote(currentQuote);
 
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  render();
+  updateRequired = false;
+#else
   updateRequired = true;
 
   xTaskCreate(&ReadagotchiActivity::taskTrampoline, "ReadagotchiTask",
@@ -36,11 +40,13 @@ void ReadagotchiActivity::onEnter() {
               1,                  // Priority
               &displayTaskHandle  // Task handle
   );
+#endif
 }
 
 void ReadagotchiActivity::onExit() {
   Activity::onExit();
 
+#if !defined(CROSSPOINT_EMULATED) || CROSSPOINT_EMULATED == 0
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -48,6 +54,7 @@ void ReadagotchiActivity::onExit() {
   }
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
+#endif
 }
 
 void ReadagotchiActivity::loop() {

@@ -202,6 +202,7 @@ void HomeActivity::loop() {
     } else if (selectorIndex == settingsIdx) {
       onSettingsOpen();
     }
+    return;  // Callbacks call exitActivity() which deletes `this`
   } else if (prevPressed) {
     selectorIndex = (selectorIndex + menuCount - 1) % menuCount;
     updateRequired = true;
