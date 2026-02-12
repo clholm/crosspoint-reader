@@ -19,38 +19,59 @@ static uint8_t emulatedFrameBuffer[HalDisplay::BUFFER_SIZE];
 #define QEMU_RGB_BPP         (*(volatile uint32_t*)(QEMU_RGB_REG_BASE + 0x18))
 #define QEMU_VRAM_BASE       ((volatile uint16_t*)0x20000000)
 
+// QEMU output display dimensions — 360x600 preserves the device's 3:5 aspect
+// ratio (480x800) at 75% uniform scale, fitting within QEMU's 600px max height.
+static constexpr uint32_t QEMU_DISPLAY_WIDTH = 360;
+static constexpr uint32_t QEMU_DISPLAY_HEIGHT = 600;
+
+// Logical portrait dimensions (what GfxRenderer sees)
+static constexpr uint32_t PORTRAIT_WIDTH = HalDisplay::DISPLAY_HEIGHT;   // 480
+static constexpr uint32_t PORTRAIT_HEIGHT = HalDisplay::DISPLAY_WIDTH;   // 800
+
 static bool qemuDisplayAvailable = false;
 
 // Convert 1-bit e-ink framebuffer to RGB565 and write to QEMU VRAM.
-// QEMU panel is 800x480 landscape. GfxRenderer is set to LandscapeCounterClockwise
-// in emulated mode, so coordinates map 1:1 to the physical framebuffer.
+// The framebuffer is 800x480 with portrait content stored rotated 90° CW
+// (GfxRenderer::Portrait maps logical (x,y) -> physical (y, 479-x)).
+// We rotate 90° CCW and scale from 480x800 to 360x600 (uniform 75%).
 //
-// Performance: we stage each scanline in regular RAM, then memcpy to VRAM.
-// Writing 384K individual volatile uint16_t stores to the QEMU device region
-// is extremely slow because each one triggers a device-model trap; bulk
-// memcpy reduces that to 480 word-aligned block copies.
+// For output pixel (ox, oy) in 360x600:
+//   portrait pixel (px, py) = (ox * 480/360, oy * 800/600)
+//   framebuffer (fbX, fbY) = (py, 479 - px)
 static void blitToQemuDisplay() {
   if (!qemuDisplayAvailable) return;
 
   uint16_t* vram = (uint16_t*)0x20000000;  // non-volatile for bulk copy
-  uint16_t rowBuf[HalDisplay::DISPLAY_WIDTH];  // 1600 bytes on stack
+  uint16_t rowBuf[QEMU_DISPLAY_WIDTH];     // 720 bytes on stack
 
-  for (uint32_t y = 0; y < HalDisplay::DISPLAY_HEIGHT; y++) {
-    const uint8_t* srcRow = emulatedFrameBuffer + y * HalDisplay::DISPLAY_WIDTH_BYTES;
-    uint32_t px = 0;
-    for (uint32_t byteIdx = 0; byteIdx < HalDisplay::DISPLAY_WIDTH_BYTES; byteIdx++) {
-      uint8_t byte = srcRow[byteIdx];
-      for (int bit = 7; bit >= 0; bit--) {
-        rowBuf[px++] = (byte & (1 << bit)) ? 0x0000 : 0xFFFF;
-      }
+  for (uint32_t oy = 0; oy < QEMU_DISPLAY_HEIGHT; oy++) {
+    // Portrait Y coordinate (0..799) from output Y (0..599)
+    const uint32_t py = oy * PORTRAIT_HEIGHT / QEMU_DISPLAY_HEIGHT;
+
+    for (uint32_t ox = 0; ox < QEMU_DISPLAY_WIDTH; ox++) {
+      // Portrait X coordinate (0..479) from output X (0..359)
+      const uint32_t px = ox * PORTRAIT_WIDTH / QEMU_DISPLAY_WIDTH;
+
+      // Inverse portrait rotation to landscape framebuffer
+      const uint32_t fbX = py;
+      const uint32_t fbY = (HalDisplay::DISPLAY_HEIGHT - 1) - px;
+
+      // Read 1-bit pixel from framebuffer
+      const uint32_t byteIndex = fbY * HalDisplay::DISPLAY_WIDTH_BYTES + (fbX / 8);
+      const uint8_t bitPosition = 7 - (fbX % 8);
+      const uint8_t byte = emulatedFrameBuffer[byteIndex];
+
+      // bit=1 in framebuffer = white/clear, bit=0 = drawn/black
+      rowBuf[ox] = (byte & (1 << bitPosition)) ? 0xFFFF : 0x0000;
     }
-    memcpy(vram + y * HalDisplay::DISPLAY_WIDTH, rowBuf, sizeof(rowBuf));
+
+    memcpy(vram + oy * QEMU_DISPLAY_WIDTH, rowBuf, sizeof(rowBuf));
   }
 
   // Trigger display update via control registers (these must be volatile)
   QEMU_RGB_UPDATE_FROM = 0;
-  QEMU_RGB_UPDATE_TO = ((uint32_t)(HalDisplay::DISPLAY_WIDTH - 1) << 16)
-                      | (HalDisplay::DISPLAY_HEIGHT - 1);
+  QEMU_RGB_UPDATE_TO = ((uint32_t)QEMU_DISPLAY_WIDTH << 16)
+                      | QEMU_DISPLAY_HEIGHT;
   QEMU_RGB_UPDATE_PTR = 0x20000000;
   QEMU_RGB_UPDATE_ST = 1;
 }
@@ -58,12 +79,12 @@ static void blitToQemuDisplay() {
 // Enable QEMU display output. Call this only when you know the virtual
 // display device is mapped (QEMU launched with -display sdl).
 extern "C" void emuEnableQemuDisplay() {
-  // Landscape: 800 wide x 480 tall (QEMU max height is 600)
-  QEMU_RGB_SIZE = ((uint32_t)HalDisplay::DISPLAY_WIDTH << 16)
-                | HalDisplay::DISPLAY_HEIGHT;
+  // Portrait: 480 wide x 600 tall (native width, cropped to QEMU's 600px max height)
+  QEMU_RGB_SIZE = ((uint32_t)QEMU_DISPLAY_WIDTH << 16)
+                | QEMU_DISPLAY_HEIGHT;
   QEMU_RGB_BPP = 16;  // RGB565
   qemuDisplayAvailable = true;
-  Serial.println("[EMU] QEMU virtual RGB display enabled");
+  Serial.println("[EMU] QEMU virtual RGB display enabled (360x600 portrait, 75% scale)");
   blitToQemuDisplay();
 }
 
@@ -110,7 +131,7 @@ void HalDisplay::drawImage(const uint8_t* imageData, uint16_t x, uint16_t y, uin
   }
 }
 
-void HalDisplay::displayBuffer(RefreshMode mode) {
+void HalDisplay::displayBuffer(RefreshMode mode, bool turnOffScreen) {
   Serial.printf("[EMU] displayBuffer (mode=%d)\n", mode);
   blitToQemuDisplay();
 }
@@ -150,7 +171,7 @@ void HalDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) {
   }
 }
 
-void HalDisplay::displayGrayBuffer() {
+void HalDisplay::displayGrayBuffer(bool turnOffScreen) {
   Serial.println("[EMU] displayGrayBuffer");
   blitToQemuDisplay();
 }

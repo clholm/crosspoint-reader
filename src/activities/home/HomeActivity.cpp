@@ -247,12 +247,6 @@ void HomeActivity::loop() {
       onSettingsOpen();
     }
     return;  // Callbacks call exitActivity() which deletes `this`
-  } else if (prevPressed) {
-    selectorIndex = (selectorIndex + menuCount - 1) % menuCount;
-    updateRequired = true;
-  } else if (nextPressed) {
-    selectorIndex = (selectorIndex + 1) % menuCount;
-    updateRequired = true;
   }
 
 #if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1

@@ -1,7 +1,7 @@
 #include "PetState.h"
 
 #include <HardwareSerial.h>
-#include <SDCardManager.h>
+#include <HalStorage.h>
 #include <Serialization.h>
 
 namespace {
@@ -13,7 +13,7 @@ PetState PetState::instance;
 
 bool PetState::saveToFile() const {
   FsFile outputFile;
-  if (!SdMan.openFileForWrite("PET", PET_FILE, outputFile)) {
+  if (!Storage.openFileForWrite("PET", PET_FILE, outputFile)) {
     return false;
   }
 
@@ -28,7 +28,7 @@ bool PetState::saveToFile() const {
 
 bool PetState::loadFromFile() {
   FsFile inputFile;
-  if (!SdMan.openFileForRead("PET", PET_FILE, inputFile)) {
+  if (!Storage.openFileForRead("PET", PET_FILE, inputFile)) {
     return false;
   }
 

@@ -1,7 +1,7 @@
 #include "QuoteExtractor.h"
 
 #include <HardwareSerial.h>
-#include <SDCardManager.h>
+#include <HalStorage.h>
 #include <Serialization.h>
 
 namespace {
@@ -45,7 +45,7 @@ std::string QuoteExtractor::readTextBlockWords(FsFile& file) {
 bool QuoteExtractor::extractQuoteFromSection(const std::string& sectionFilePath, const std::string& bookTitle,
                                              CachedQuote& outQuote) {
   FsFile file;
-  if (!SdMan.openFileForRead("QEX", sectionFilePath, file)) {
+  if (!Storage.openFileForRead("QEX", sectionFilePath, file)) {
     return false;
   }
 
@@ -127,7 +127,7 @@ bool QuoteExtractor::extractQuoteFromSection(const std::string& sectionFilePath,
 
 bool QuoteExtractor::saveQuotes(const std::vector<CachedQuote>& quotes) {
   FsFile file;
-  if (!SdMan.openFileForWrite("QEX", QUOTE_FILE, file)) {
+  if (!Storage.openFileForWrite("QEX", QUOTE_FILE, file)) {
     return false;
   }
 
@@ -145,7 +145,7 @@ bool QuoteExtractor::saveQuotes(const std::vector<CachedQuote>& quotes) {
 
 bool QuoteExtractor::loadQuotes(std::vector<CachedQuote>& quotes) {
   FsFile file;
-  if (!SdMan.openFileForRead("QEX", QUOTE_FILE, file)) {
+  if (!Storage.openFileForRead("QEX", QUOTE_FILE, file)) {
     return false;
   }
 

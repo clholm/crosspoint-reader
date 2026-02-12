@@ -6,7 +6,7 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "PetState.h"
-#include "ScreenComponents.h"
+#include "components/UITheme.h"
 #include "fontIds.h"
 #include "images/pet/PetEgg.h"
 #include "images/pet/PetHappy.h"
@@ -279,7 +279,8 @@ void ReadagotchiActivity::render() {
   // Battery indicator
   const bool showBatteryPercentage =
       SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-  ScreenComponents::drawBattery(renderer, pageWidth - 40, 10, showBatteryPercentage);
+  auto metrics = UITheme::getInstance().getMetrics();
+  GUI.drawBattery(renderer, Rect{pageWidth - 40, 10, metrics.batteryWidth, metrics.batteryHeight}, showBatteryPercentage);
 
   // Title
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "My Pet", true, EpdFontFamily::BOLD);
@@ -308,7 +309,7 @@ void ReadagotchiActivity::render() {
 
   // Bottom button hints
   const auto labels = mappedInput.mapLabels("Back", "", "", "");
-  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

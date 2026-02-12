@@ -381,6 +381,18 @@ void GfxRenderer::fillRoundedRect(const int x, const int y, const int width, con
 }
 
 void GfxRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, const int width, const int height) const {
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  // Emulator: render pixel-by-pixel so drawPixel handles rotation correctly.
+  // The bulk memcpy path below doesn't rotate the bitmap pixel data (only the origin).
+  for (int j = 0; j < height; j++) {
+    for (int i = 0; i < width; i++) {
+      const int byteOffset = j * (width / 8) + (i / 8);
+      const int bitPos = 7 - (i % 8);
+      const bool bitSet = (bitmap[byteOffset] >> bitPos) & 1;
+      drawPixel(x + i, y + j, !bitSet);
+    }
+  }
+#else
   int rotatedX = 0;
   int rotatedY = 0;
   rotateCoordinates(orientation, x, y, &rotatedX, &rotatedY);
@@ -401,10 +413,22 @@ void GfxRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, co
   }
   // TODO: Rotate bits
   display.drawImage(bitmap, rotatedX, rotatedY, width, height);
+#endif
 }
 
 void GfxRenderer::drawIcon(const uint8_t bitmap[], const int x, const int y, const int width, const int height) const {
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  for (int j = 0; j < height; j++) {
+    for (int i = 0; i < width; i++) {
+      const int byteOffset = j * (width / 8) + (i / 8);
+      const int bitPos = 7 - (i % 8);
+      const bool bitSet = (bitmap[byteOffset] >> bitPos) & 1;
+      drawPixel(x + i, y + j, !bitSet);
+    }
+  }
+#else
   display.drawImage(bitmap, y, getScreenWidth() - width - x, height, width);
+#endif
 }
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
