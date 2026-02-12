@@ -98,8 +98,8 @@ bool HalGPIO::isUsbConnected() const {
   return true;  // Always connected in emulator
 }
 
-bool HalGPIO::isWakeupByPowerButton() const {
-  return false;  // Normal boot in emulator
+HalGPIO::WakeupReason HalGPIO::getWakeupReason() const {
+  return WakeupReason::AfterFlash;  // Skip power button verification in emulator
 }
 
 #endif  // CROSSPOINT_EMULATED
