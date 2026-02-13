@@ -42,13 +42,11 @@ def png_to_bytes(png_path: pathlib.Path) -> list[int]:
     """
     img = Image.open(png_path)
 
-    # Composite RGBA transparency onto white background
-    if img.mode == "RGBA":
-        bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
-        bg.paste(img, mask=img.split()[3])
-        img = bg
-
-    img = img.convert("L")
+    # Composite any transparency onto white background
+    img = img.convert("RGBA")
+    bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+    bg.paste(img, mask=img.split()[3])
+    img = bg.convert("L")
 
     # Resize to 64x64 if needed, preserving aspect ratio
     if img.size != (SPRITE_SIZE, SPRITE_SIZE):
