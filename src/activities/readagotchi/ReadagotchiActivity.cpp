@@ -29,8 +29,15 @@ void ReadagotchiActivity::onEnter() {
   hasQuote = QuoteExtractor::loadRandomQuote(currentQuote);
 
 #if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  // Provide a test quote since SD card is stubbed
+  if (!hasQuote) {
+    currentQuote.text = "The more that you read, the more things you will know. The more that you learn, the more places you'll go.";
+    currentQuote.bookTitle = "Oh, the Places You'll Go!";
+    hasQuote = true;
+  }
   render();
   updateRequired = false;
+  Serial.println("[EMU] Readagotchi debug: press UP(k)/DOWN(j) to cycle moods, CONFIRM(c) to cycle quotes");
 #else
   updateRequired = true;
 
@@ -62,6 +69,14 @@ void ReadagotchiActivity::loop() {
     onGoBack();
     return;
   }
+
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  handleDebugInput();
+  if (updateRequired) {
+    updateRequired = false;
+    render();
+  }
+#endif
 }
 
 void ReadagotchiActivity::displayTaskLoop() {
@@ -171,9 +186,11 @@ void ReadagotchiActivity::drawSpeechBubble(const int x, const int y, const int w
 }
 
 void ReadagotchiActivity::drawPetSprite(const int centerX, const int centerY) {
-  constexpr int spriteSize = 64;
-  const int spriteX = centerX - spriteSize / 2;
-  const int spriteY = centerY - spriteSize / 2;
+  constexpr int srcSize = 64;
+  constexpr int scale = 4;
+  constexpr int dstSize = srcSize * scale;
+  const int spriteX = centerX - dstSize / 2;
+  const int spriteY = centerY - dstSize / 2;
 
   const PetState::Mood mood = PET_STATE.computeMood();
 
@@ -200,7 +217,16 @@ void ReadagotchiActivity::drawPetSprite(const int centerX, const int centerY) {
   }
 
   if (sprite) {
-    renderer.drawImage(sprite, spriteX, spriteY, spriteSize, spriteSize);
+    for (int sy = 0; sy < srcSize; sy++) {
+      for (int sx = 0; sx < srcSize; sx++) {
+        const int byteOffset = sy * (srcSize / 8) + (sx / 8);
+        const int bitPos = 7 - (sx % 8);
+        const bool pixelBlack = !((sprite[byteOffset] >> bitPos) & 1);
+        if (pixelBlack) {
+          renderer.fillRect(spriteX + sx * scale, spriteY + sy * scale, scale, scale, true);
+        }
+      }
+    }
   }
 }
 
@@ -276,36 +302,31 @@ void ReadagotchiActivity::render() {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  // Battery indicator
-  const bool showBatteryPercentage =
-      SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
+  // Header with battery and title (uses theme-consistent rendering)
   auto metrics = UITheme::getInstance().getMetrics();
-  GUI.drawBattery(renderer, Rect{pageWidth - 40, 10, metrics.batteryWidth, metrics.batteryHeight}, showBatteryPercentage);
-
-  // Title
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "My Pet", true, EpdFontFamily::BOLD);
+  GUI.drawHeader(renderer, Rect{0, 5, pageWidth, 40}, "My Pet");
 
   // Layout depends on whether we have a quote
   int spriteY;
   if (hasQuote && !currentQuote.text.empty()) {
     // Speech bubble at top
-    constexpr int bubbleX = 40;
+    constexpr int bubbleX = 50;
     constexpr int bubbleY = 50;
     const int bubbleWidth = pageWidth - bubbleX * 2;
     constexpr int bubbleMaxHeight = 180;
     drawSpeechBubble(bubbleX, bubbleY, bubbleWidth, bubbleMaxHeight);
 
     // Pet sprite below the bubble area
-    spriteY = 300;
+    spriteY = 400;
   } else {
-    // No quote: pet sprite higher up
-    spriteY = 180;
+    // No quote: pet sprite centered
+    spriteY = 300;
   }
 
   drawPetSprite(pageWidth / 2, spriteY);
 
-  // Stats below the pet
-  drawStats(spriteY + 50);
+  // Stats below the pet (128px from center to sprite bottom + 16px gap)
+  drawStats(spriteY + 128 + 16);
 
   // Bottom button hints
   const auto labels = mappedInput.mapLabels("Back", "", "", "");
@@ -313,3 +334,86 @@ void ReadagotchiActivity::render() {
 
   renderer.displayBuffer();
 }
+
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+
+static const CachedQuote debugQuotes[] = {
+  {"The more that you read, the more things you will know. The more that you learn, the more places you'll go.", "Oh, the Places You'll Go!"},
+  {"A reader lives a thousand lives before he dies.", "A Dance with Dragons"},
+  {"So many books, so little time.", "Frank Zappa"},
+  {"Reading is to the mind what exercise is to the body. It is wholesome and bracing for the mind to be compelled to grapple with unfamiliar and challenging ideas.", "Richard Steele"},
+};
+static constexpr uint8_t DEBUG_QUOTE_COUNT = sizeof(debugQuotes) / sizeof(debugQuotes[0]);
+
+void ReadagotchiActivity::setMoodState(uint8_t moodIndex) {
+  const auto targetMood = static_cast<PetState::Mood>(moodIndex);
+  switch (targetMood) {
+    case PetState::Mood::EGG:
+      PET_STATE.hatched = false;
+      PET_STATE.fedThisSession = false;
+      PET_STATE.bootCount = 1;
+      PET_STATE.lastFedBoot = 1;
+      break;
+    case PetState::Mood::VERY_HAPPY:
+      PET_STATE.hatched = true;
+      PET_STATE.fedThisSession = true;
+      PET_STATE.bootCount = 1;
+      PET_STATE.lastFedBoot = 1;
+      break;
+    case PetState::Mood::HAPPY:
+      PET_STATE.hatched = true;
+      PET_STATE.fedThisSession = false;
+      PET_STATE.bootCount = 5;
+      PET_STATE.lastFedBoot = 5;
+      break;
+    case PetState::Mood::NEUTRAL:
+      PET_STATE.hatched = true;
+      PET_STATE.fedThisSession = false;
+      PET_STATE.bootCount = 5;
+      PET_STATE.lastFedBoot = 4;
+      break;
+    case PetState::Mood::SAD:
+      PET_STATE.hatched = true;
+      PET_STATE.fedThisSession = false;
+      PET_STATE.bootCount = 5;
+      PET_STATE.lastFedBoot = 3;
+      break;
+    case PetState::Mood::VERY_SAD:
+      PET_STATE.hatched = true;
+      PET_STATE.fedThisSession = false;
+      PET_STATE.bootCount = 10;
+      PET_STATE.lastFedBoot = 0;
+      break;
+  }
+  Serial.printf("[EMU] Debug: Set mood to %u (hunger=%lu, hatched=%d, fed=%d)\n",
+                static_cast<uint8_t>(targetMood),
+                static_cast<unsigned long>(PET_STATE.getHunger()),
+                PET_STATE.hatched, PET_STATE.fedThisSession);
+}
+
+void ReadagotchiActivity::handleDebugInput() {
+  const PetState::Mood currentMood = PET_STATE.computeMood();
+  const uint8_t currentIdx = static_cast<uint8_t>(currentMood);
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
+    uint8_t nextIdx = (currentIdx + 1) % 6;
+    setMoodState(nextIdx);
+    updateRequired = true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+    uint8_t prevIdx = (currentIdx == 0) ? 5 : (currentIdx - 1);
+    setMoodState(prevIdx);
+    updateRequired = true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    debugQuoteIndex = (debugQuoteIndex + 1) % DEBUG_QUOTE_COUNT;
+    currentQuote = debugQuotes[debugQuoteIndex];
+    hasQuote = true;
+    Serial.printf("[EMU] Debug: Switched to quote %u/%u\n", debugQuoteIndex + 1, DEBUG_QUOTE_COUNT);
+    updateRequired = true;
+  }
+}
+
+#endif  // CROSSPOINT_EMULATED

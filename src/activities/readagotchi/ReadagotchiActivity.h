@@ -23,6 +23,12 @@ class ReadagotchiActivity final : public Activity {
   void drawPetSprite(int centerX, int centerY);
   void drawStats(int y);
 
+#if defined(CROSSPOINT_EMULATED) && CROSSPOINT_EMULATED == 1
+  void handleDebugInput();
+  void setMoodState(uint8_t targetMood);
+  uint8_t debugQuoteIndex = 0;
+#endif
+
  public:
   explicit ReadagotchiActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                               const std::function<void()>& onGoBack)
